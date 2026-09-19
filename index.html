@@ -112,6 +112,7 @@
   /* ---------- nav ---------- */
   .nav{display:flex;gap:10px;margin-top:22px;align-items:center}
   .hint{font-size:12px;color:var(--sub);margin-left:auto;text-align:right;line-height:1.6}
+  .hint.warn{color:var(--red);font-weight:600}
 
   /* ---------- speaking ---------- */
   .speak{margin-top:28px}
@@ -332,9 +333,9 @@ const Q = [
     </g>
     <text x="260" y="136" text-anchor="middle" font-size="13" fill="var(--sub)">校训 = 求是求新，树木树人 —— 四个选项里只有一个能填进校风</text>
   </svg>`,
-  opts:['Seek truth','Fair and justice','Cultivate people','Seek innovation'],
+  opts:['Seek truth','Fairness and justice','Cultivate people','Seek innovation'],
   a:1,
-  note:'<b>公允 (fair and just).</b> 校风为“包容、诚朴、坚毅、公允”；校训为“求是求新，树木树人”。求是、树人、求新都是校训里的词，填不进校风；校风的第四个词是“公允”（公平恰当，体现公正、正义、为公）。<span class="cn">出处：官网《形象识别》、《章程（2025 修订）》。易混提示：校训与校风是两套四字词，别混。</span>'
+  note:'<b>公允 (fairness and justice).</b> 校风为“包容、诚朴、坚毅、公允”；校训为“求是求新，树木树人”。求是、树人、求新都是校训里的词，填不进校风；校风的第四个词是“公允”（公平恰当，体现公正、正义、为公）。<span class="cn">出处：官网《形象识别》、《章程（2025 修订）》。易混提示：校训与校风是两套四字词，别混。</span>'
 },
 {
   q:'You want to borrow an English novel on a rainy afternoon. Where do you go?',
@@ -418,6 +419,25 @@ function intro(){
   document.getElementById('fill').style.width = '0%';
 }
 
+// 未作答不允许翻页（仅学生模式；教师投影模式要能自由跳题/先讲后翻）
+function locked(){ return mode === 'student' && !answered.has(i); }
+function next(){
+  if (locked()) {
+    const h = document.getElementById('hint');
+    if (h) { h.textContent = 'Pick an answer first · 先选一个答案才能翻页'; h.classList.add('warn'); }
+    return;
+  }
+  if (i === total() - 1) end(); else go(i + 1);
+}
+
+// 作答后解锁翻页按钮（pick/mark 两条路径都要调）
+function unlockNext(){
+  const nb = document.getElementById('nextBtn');
+  if (nb) { nb.disabled = false; nb.style.opacity = '1'; }
+  const h = document.getElementById('hint');
+  if (h) { h.textContent = ''; h.classList.remove('warn'); }
+}
+
 function go(n){
   i = n;
   stopTimer();
@@ -440,8 +460,8 @@ function go(n){
       </div>`}
       <div class="note ${done && mode!=='student' ? 'on':''}" id="note">${d.note}</div>
       <div class="nav">
-        <button class="btn primary" onclick="${i===total()-1?'end()':'go('+(i+1)+')'}">${i===total()-1?'Finish →':'Next →'}</button>
-        <span class="hint">${done?'':'Click an option to answer'}</span>
+        <button class="btn primary" id="nextBtn" onclick="next()" ${(mode==='student'&&!done)?'disabled style="opacity:.45"':''}>${i===total()-1?'Finish →':'Next →'}</button>
+        <span class="hint" id="hint">${(mode==='student'&&!done)?'Pick an answer first · 先选一个答案才能翻页':''}</span>
       </div>
     </div>`;
 
@@ -459,6 +479,7 @@ function go(n){
 function pick(k){
   if (answered.has(i)) return;
   answered.add(i);
+  unlockNext();
   const d = cur();
   if (k === d.a) score++;
   document.getElementById('score').textContent = score;
@@ -467,6 +488,7 @@ function pick(k){
 
 function mark(choice, silent){
   const d = cur();
+  unlockNext();
   const btns = stage.querySelectorAll('.opt, .optimg');
   btns.forEach(b => {
     const k = parseInt(b.dataset.k);
@@ -537,7 +559,7 @@ function startTimer(){}
 function tick(){}
 function stopTimer(){}
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (i < total()-1) go(i+1); }
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (i >= 0 && i < total()) next(); }
   if (e.key === 'ArrowLeft') { if (i > 0) go(i-1); }
 });
 
