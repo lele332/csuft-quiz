@@ -366,6 +366,38 @@ function total(){ return order.length }
 function cur(){ return Q[order[i]] }
 function qno(){ return order[i] + 1 }       // 真实题号 1–11，用于取图和难度
 
+/* ---------- 选项顺序打乱 ----------
+   题目顺序永远不变（Q1→Q11）；但每个人打开页面时，每题的 A/B/C/D 顺序随机重排一次，
+   重排结果按题目缓存，所以同一次作答里来回翻页不会变，刷新/重扫才会变。
+   关键：按钮的 data-k 存的是「原始选项下标」，显示位置 k 只决定角标字母 A/B/C/D，
+   这样 pick() / mark() 里和 d.a 的比较逻辑一行都不用改。          */
+// 改成 true：年份 / 数字类选项（如 1911·1958·2003·2005、亩数）保持从小到大，不参与打乱
+const KEEP_NUMERIC_ORDER = false;
+function numOf(t){ const m = String(t).replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : NaN; }
+function isNumericOpts(arr){
+  const v = arr.map(numOf);
+  return v.every(x => !isNaN(x)) && new Set(v).size === arr.length;
+}
+const permMap = new Map();
+function permOf(idx){
+  if (permMap.has(idx)) return permMap.get(idx);
+  const d = Q[idx];
+  const n = (d.photoOpts || d.opts).length;
+  // 数字升序：直接按数值排序，不打乱
+  if (!d.photoOpts && KEEP_NUMERIC_ORDER && isNumericOpts(d.opts)) {
+    const asc = d.opts.map((_, k) => k).sort((x, y) => numOf(d.opts[x]) - numOf(d.opts[y]));
+    permMap.set(idx, asc);
+    return asc;
+  }
+  const p = Array.from({length:n}, (_,k) => k);
+  for (let k = n - 1; k > 0; k--){                 // Fisher–Yates
+    const j = Math.floor(Math.random() * (k + 1));
+    const t = p[k]; p[k] = p[j]; p[j] = t;
+  }
+  permMap.set(idx, p);
+  return p;
+}
+
 // 难度分级：★ 看一眼就会 · ★★ 想一想或看图找 · ★★★ 得真记住才行
 const DIFF = {1:1,2:2,3:1,4:3,5:3,6:2,7:3,8:2,9:3,10:1,11:1};
 function stars(idx){
@@ -443,6 +475,7 @@ function go(n){
   stopTimer();
   const d = cur();
   const done = answered.has(i);
+  const perm = permOf(order[i]);     // 本题的显示顺序：perm[显示位置] = 原始选项下标
   stage.innerHTML = `
     <div class="card">
       <div class="kicker">${d.bonus ? 'Bonus question' : 'Question ' + (i+1) + ' of ' + total()}
@@ -454,9 +487,9 @@ function go(n){
         ${d.caption && !EMBED[qno()] ? `<div class="figcap">${d.caption}</div>` : ''}
       </div>`}
       ${d.photoOpts
-        ? `<div class="photogrid" id="opts">${d.photoOpts.map((src,k)=>`<button class="optimg" data-k="${k}"><span class="key">${'ABCD'[k]}</span><img src="${src}" alt=""></button>`).join('')}</div>`
+        ? `<div class="photogrid" id="opts">${perm.map((oi,k)=>`<button class="optimg" data-k="${oi}"><span class="key">${'ABCD'[k]}</span><img src="${d.photoOpts[oi]}" alt=""></button>`).join('')}</div>`
         : `<div class="opts" id="opts">
-        ${d.opts.map((o,k)=>`<button class="opt" data-k="${k}"><span class="key">${'ABCD'[k]}</span><span>${o}</span></button>`).join('')}
+        ${perm.map((oi,k)=>`<button class="opt" data-k="${oi}"><span class="key">${'ABCD'[k]}</span><span>${d.opts[oi]}</span></button>`).join('')}
       </div>`}
       <div class="note ${done && mode!=='student' ? 'on':''}" id="note">${d.note}</div>
       <div class="nav">
